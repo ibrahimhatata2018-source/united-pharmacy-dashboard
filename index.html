@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>United Pharmacy - Sales Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        :root{
+            --bg-main:#060d18;--bg-card:#0c1627;--bg-card-hover:#111f38;
+            --bg-topbar:#081220;--accent:#0d9488;--accent-light:#2dd4bf;
+            --accent-glow:rgba(13,148,136,0.3);--green:#10b981;--red:#ef4444;
+            --amber:#f59e0b;--blue:#3b82f6;--purple:#8b5cf6;--pink:#ec4899;
+            --cyan:#06b6d4;--text-white:#f1f5f9;--text-light:#cbd5e1;
+            --text-gray:#94a3b8;--text-dim:#64748b;--border:#1a2d4a;
+        }
+        body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg-main);color:var(--text-white);min-height:100vh;overflow-x:hidden}
+        .bg-layer{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;overflow:hidden;pointer-events:none}
+        .bg-layer::before{content:'';position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:radial-gradient(ellipse at 20% 50%,rgba(13,148,136,0.07) 0%,transparent 50%),radial-gradient(ellipse at 80% 20%,rgba(59,130,246,0.05) 0%,transparent 50%),radial-gradient(ellipse at 50% 80%,rgba(139,92,246,0.04) 0%,transparent 50%);animation:bgFloat 25s ease-in-out infinite}
+        @keyframes bgFloat{0%,100%{transform:translate(0,0) rotate(0deg)}33%{transform:translate(2%,-1%) rotate(1deg)}66%{transform:translate(-1%,2%) rotate(-1deg)}}
+        .content-wrapper{position:relative;z-index:1}
+
+        /* TOPBAR */
+        .topbar{background:rgba(12,22,39,0.9);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:10px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+        .topbar-left{display:flex;align-items:center;gap:14px}
+        .logo-area{display:flex;align-items:center;gap:14px;position:relative}
+        .topbar-logo-img{height:44px;width:auto;border-radius:8px;object-fit:contain;display:block}
+        .logo-text-main{font-size:20px;font-weight:800;color:var(--text-white);letter-spacing:-0.5px;line-height:1.2}
+        .logo-text-sub{font-size:11px;font-weight:500;color:var(--accent-light);letter-spacing:1px;text-transform:uppercase}
+        .logo-upload-btn{position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer}
+        .logo-upload-hint{position:absolute;bottom:-22px;left:0;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:10px;color:var(--text-dim);white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .2s}
+        .logo-area:hover .logo-upload-hint{opacity:1}
+        .topbar-right{display:flex;align-items:center;gap:10px}
+        .filter-bar{display:none;align-items:center;gap:8px;padding:12px 18px;background:rgba(12,22,39,0.75);backdrop-filter:blur(10px);border:1px solid var(--border);border-radius:12px;margin-bottom:18px;flex-wrap:wrap;animation:slideDown .3s ease}
+        .filter-bar.show{display:flex}
+        .filter-label{font-size:12px;font-weight:600;color:var(--text-gray);margin-right:4px;display:flex;align-items:center;gap:6px}
+        .filter-divider{width:1px;height:24px;background:var(--border);margin:0 4px}
+        .filter-btn{padding:6px 14px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text-gray);font-family:'Inter';font-size:12px;font-weight:500;cursor:pointer;transition:all .15s;white-space:nowrap}
+        .filter-btn:hover{border-color:var(--accent);color:var(--text-white)}
+        .filter-btn.active{background:var(--accent);border-color:var(--accent);color:white;box-shadow:0 2px 8px var(--accent-glow)}
+        .filter-btn.active:hover{background:var(--accent-light);border-color:var(--accent-light)}
+        .month-select{background:var(--bg-card);border:1px solid var(--border);color:var(--text-white);padding:8px 14px;border-radius:8px;font-family:'Inter';font-size:13px;cursor:pointer;outline:none}
+        .month-select:hover,.month-select:focus{border-color:var(--accent)}
+        .btn{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border-radius:8px;border:none;font-family:'Inter';font-size:13px;font-weight:600;cursor:pointer;transition:all .2s}
+        .btn-primary{background:linear-gradient(135deg,var(--accent),#0f766e);color:white;box-shadow:0 4px 15px var(--accent-glow)}
+        .btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 20px var(--accent-glow)}
+        .btn-secondary{background:var(--bg-card);color:var(--text-light);border:1px solid var(--border)}
+        .btn-secondary:hover{border-color:var(--accent);color:var(--accent-light)}
+        .main-content{padding:22px 24px;max-width:1600px;margin:0 auto}
+
+        /* FILE INFO */
+        .file-info{display:none;align-items:center;gap:12px;padding:12px 18px;background:rgba(13,148,136,0.08);border:1px solid rgba(13,148,136,0.2);border-radius:10px;margin-bottom:20px;font-size:13px;color:var(--accent-light);animation:slideDown .3s ease}
+        .file-info.show{display:flex}
+        .file-info .file-stats{margin-left:auto;display:flex;gap:20px;color:var(--text-gray);font-size:12px}
+        .file-info .file-stats strong{color:var(--text-light)}
+        @keyframes slideDown{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+
+        /* WELCOME */
+        .welcome-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:65vh;text-align:center;animation:fadeIn .5s ease}
+        @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+        .welcome-logos{display:flex;align-items:center;gap:24px;margin-bottom:32px}
+        .welcome-logo-wide{height:100px;width:auto;border-radius:16px;object-fit:contain;filter:drop-shadow(0 8px 30px rgba(13,148,136,0.3))}
+        .welcome-logo-square{width:100px;height:100px;border-radius:24px;object-fit:contain;background:rgba(12,22,39,0.5);border:2px solid rgba(13,148,136,0.2);filter:drop-shadow(0 8px 25px rgba(13,148,136,0.25))}
+        .welcome-title{font-size:30px;font-weight:800;margin-bottom:10px;letter-spacing:-.5px}
+        .welcome-sub{font-size:14px;color:var(--text-gray);margin-bottom:32px;max-width:440px;line-height:1.7}
+        .welcome-upload{position:relative;overflow:hidden}
+        .welcome-upload input[type="file"]{position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer}
+        .welcome-upload .btn{padding:14px 36px;font-size:15px}
+        .welcome-hint{margin-top:22px;font-size:12px;color:var(--text-dim);line-height:1.6}
+
+        /* LOADER */
+        .loader{display:none;flex-direction:column;align-items:center;justify-content:center;min-height:50vh}
+        .loader.show{display:flex}
+        .spinner{width:44px;height:44px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+        @keyframes spin{to{transform:rotate(360deg)}}
+        .loader-text{margin-top:14px;font-size:13px;color:var(--text-gray)}
+
+        /* DASHBOARD */
+        .dashboard{display:none;animation:fadeIn .4s ease}
+        .dashboard.show{display:block}
+
+        /* KPI CARDS */
+        .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:18px}
+        .kpi-card{background:rgba(12,22,39,0.75);backdrop-filter:blur(10px);border:1px solid var(--border);border-radius:12px;padding:16px;transition:all .3s;position:relative;overflow:hidden}
+        .kpi-card::before{content:'';position:absolute;top:0;left:0;width:100%;height:3px;border-radius:12px 12px 0 0}
+        .kpi-card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 8px 25px rgba(0,0,0,.3)}
+        .kpi-label{font-size:10px;font-weight:500;color:var(--text-gray);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+        .kpi-value{font-size:19px;font-weight:700;letter-spacing:-.5px}
+        .kpi-sub{font-size:10px;color:var(--text-dim);margin-top:3px}
+        .kpi-icon{position:absolute;top:14px;right:14px;font-size:22px;opacity:.12}
+        .kpi-accent::before{background:var(--accent)}.kpi-accent .kpi-value{color:var(--accent-light)}
+        .kpi-blue::before{background:var(--blue)}.kpi-blue .kpi-value{color:var(--blue)}
+        .kpi-purple::before{background:var(--purple)}.kpi-purple .kpi-value{color:var(--purple)}
+        .kpi-amber::before{background:var(--amber)}.kpi-amber .kpi-value{color:var(--amber)}
+        .kpi-red::before{background:var(--red)}.kpi-red .kpi-value{color:var(--red)}
+        .kpi-green::before{background:var(--green)}.kpi-green .kpi-value{color:var(--green)}
+        .kpi-cyan::before{background:var(--cyan)}.kpi-cyan .kpi-value{color:var(--cyan)}
+        .kpi-pink::before{background:var(--pink)}.kpi-pink .kpi-value{color:var(--pink)}
+
+        /* SECTION TITLE */
+        .section-title{display:flex;align-items:center;gap:10px;margin:24px 0 14px;font-size:15px;font-weight:700}
+        .section-title .line{flex:1;height:1px;background:linear-gradient(to right,var(--border),transparent)}
+
+        /* CHARTS */
+        .charts-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+        .chart-card{background:rgba(12,22,39,0.75);backdrop-filter:blur(10px);border:1px solid var(--border);border-radius:12px;padding:18px;transition:border-color .3s}
+        .chart-card:hover{border-color:rgba(13,148,136,0.4)}
+        .chart-header{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+        .chart-header .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent-glow)}
+        .chart-header h3{font-size:13px;font-weight:600}
+        .chart-container{position:relative;height:260px}
+
+        /* PHARMACIST CARDS */
+        .pharm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;margin-bottom:20px}
+        .pharm-card{background:rgba(12,22,39,0.75);backdrop-filter:blur(10px);border:1px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;transition:all .3s;position:relative;overflow:hidden}
+        .pharm-card::before{content:'';position:absolute;top:0;left:0;width:100%;height:3px;background:linear-gradient(90deg,var(--accent),var(--accent-light));opacity:0;transition:opacity .3s}
+        .pharm-card:hover{border-color:var(--accent);transform:translateY(-3px);box-shadow:0 8px 25px rgba(0,0,0,.3),0 0 20px var(--accent-glow)}
+        .pharm-card:hover::before{opacity:1}
+        .pharm-top{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+        .pharm-avatar{width:44px;height:44px;border-radius:10px;object-fit:contain;flex-shrink:0;background:var(--bg-main);border:1px solid var(--border);padding:3px}
+        .pharm-avatar-fallback{width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:white;flex-shrink:0}
+        .pharm-name{font-size:13px;font-weight:600;color:var(--text-white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
+        .pharm-badge{width:26px;height:26px;border-radius:6px;background:var(--bg-main);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--accent-light);transition:all .2s;flex-shrink:0}
+        .pharm-card:hover .pharm-badge{background:var(--accent);border-color:var(--accent);color:white}
+        .pharm-stat{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--text-gray);margin-bottom:3px}
+        .pharm-stat-val{font-weight:600;color:var(--text-light)}
+
+        /* MODAL */
+        .modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(6,13,24,0.88);backdrop-filter:blur(8px);z-index:1000;align-items:center;justify-content:center;padding:20px}
+        .modal-overlay.show{display:flex}
+        .modal{background:var(--bg-card);border:1px solid var(--border);border-radius:16px;width:100%;max-width:920px;max-height:85vh;overflow-y:auto;animation:modalIn .3s ease}
+        @keyframes modalIn{from{opacity:0;transform:scale(.95) translateY(10px)}to{opacity:1;transform:scale(1) translateY(0)}}
+        .modal-header{display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg-card);z-index:2;border-radius:16px 16px 0 0}
+        .modal-header-left{display:flex;align-items:center;gap:14px}
+        .modal-logo{width:48px;height:48px;border-radius:12px;object-fit:contain;background:var(--bg-main);border:1px solid var(--border);padding:4px}
+        .modal-logo-wide{height:36px;width:auto;object-fit:contain;max-width:160px;border-radius:6px}
+        .modal-title{font-size:17px;font-weight:700}
+        .modal-subtitle{font-size:11px;color:var(--text-gray)}
+        .modal-close{width:34px;height:34px;border-radius:8px;background:var(--bg-main);border:1px solid var(--border);color:var(--text-gray);font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s}
+        .modal-close:hover{border-color:var(--red);color:var(--red)}
+        .modal-body{padding:20px 22px}
+        .modal-kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:20px}
+        .modal-kpi{background:var(--bg-main);border:1px solid var(--border);border-radius:10px;padding:14px}
+        .modal-kpi-label{font-size:10px;color:var(--text-gray);text-transform:uppercase;letter-spacing:.5px}
+        .modal-kpi-value{font-size:17px;font-weight:700;margin-top:4px}
+        .modal-charts-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:20px}
+        .modal-chart-card{background:var(--bg-main);border:1px solid var(--border);border-radius:10px;padding:16px}
+        .modal-chart-card h4{font-size:12px;font-weight:600;color:var(--text-gray);margin-bottom:10px}
+        .modal-chart-container{height:220px}
+        .modal-table-wrap{max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:10px}
+        .modal-table-wrap table{width:100%;border-collapse:collapse;font-size:12px}
+        .modal-table-wrap thead{position:sticky;top:0;z-index:1}
+        .modal-table-wrap th{background:var(--bg-card);color:var(--text-gray);padding:10px 12px;text-align:left;font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap}
+        .modal-table-wrap td{padding:8px 12px;border-bottom:1px solid rgba(26,45,74,.3);color:var(--text-light)}
+        .modal-table-wrap tr:hover td{background:rgba(13,148,136,.05)}
+        .modal-tabs{display:flex;gap:4px;margin-bottom:16px;background:var(--bg-main);border-radius:8px;padding:3px}
+        .modal-tab{flex:1;padding:8px 12px;border:none;border-radius:6px;background:transparent;color:var(--text-gray);font-family:'Inter';font-size:12px;font-weight:500;cursor:pointer;transition:all .2s;text-align:center}
+        .modal-tab.active{background:var(--accent);color:white}
+        .modal-tab:hover:not(.active){color:var(--text-white)}
+        .tab-content{display:none}.tab-content.active{display:block}
+
+        #logoInput{display:none}#fileInput{display:none}
+        @media(max-width:1100px){.charts-grid,.modal-charts-grid{grid-template-columns:1fr}}
+        @media(max-width:768px){
+            .kpi-grid{grid-template-columns:repeat(2,1fr)}.pharm-grid{grid-template-columns:repeat(2,1fr)}.topbar{flex-direction:column;gap:10px;padding:14px}.main-content{padding:14px}.modal{max-width:100%}.welcome-logos{flex-direction:column;gap:16px}
+        }
+        ::-webkit-scrollbar{width:7px}::-webkit-scrollbar-track{background:var(--bg-main)}::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}::-webkit-scrollbar-thumb:hover{background:var(--text-dim)}
+        .drop-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(6,13,24,.92);z-index:1000;align-items:center;justify-content:center;border:3px dashed var(--accent)}
+        .drop-overlay.show{display:flex}
+        .drop-overlay-inner{text-align:center;color:var(--accent-light)}
+        .drop-overlay-inner .icon{font-size:56px;margin-bottom:14px}
+        .drop-overlay-inner p{font-size:17px;font-weight:600}
+    </style>
+</head>
+<body>
+
+<div class="bg-layer"></div>
+
+<div class="drop-overlay" id="dropOverlay"><div class="drop-overlay-inner"><div class="icon">📤</div><p>Drop your Excel file here</p></div></div>
+
+<!-- PHARMACIST MODAL -->
+<div class="modal-overlay" id="pharmModal"><div class="modal">
+    <div class="modal-header">
+        <div class="modal-header-left">
+            <img class="modal-logo" id="modalLogoImg" src="data:image/png;base64,iVBORw0KGgoAAA... (logo image)">
+            <div><div class="modal-title">Pharmacist</div><div class="modal-subtitle">Analytics</div></div>
+        </div>
+        <button class="modal-close" onclick="closeModal()">✖</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+</div></div>
+
+<input type="file" id="logoInput" accept="image/*">
+<input type="file" id="fileInput" accept=".xlsx,.xls">
+
+<div class="content-wrapper">
+    <!-- TOPBAR -->
+    <div class="topbar">
+        <div class="topbar-left">
+            <div class="logo-area">
+                <img class="topbar-logo-img" id="topbarLogo" src="data:image/png;base64,iVBORw0KGgoAAA... (logo image)">
+                <div>
+                    <div class="logo-text-main">United Pharmacy</div>
+                    <div class="logo-text-sub">Sales Dashboard</div>
+                </div>
+                <input type="file" class="logo-upload-btn" id="logoUploadBtn" accept="image/*">
+                <div class="logo-upload-hint">📤 Click to change logo</div>
+            </div>
+        </div>
+        <div class="topbar-right">
+            <button class="btn btn-secondary" onclick="document.getElementById('fileInput').click()">📤 Load Excel</button>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="file-info" id="fileInfo">
+            <span>📊</span><span id="fileName"></span>
+            <div class="file-stats"><span>Rows: <strong id="rowCount">0</strong></span><span>Columns: <strong id="colCount">0</strong></span><span>Sheet: <strong id="sheetName"></strong></span></div>
+        </div>
+
+        <!-- FILTER BAR -->
+        <div class="filter-bar" id="filterBar">
+            <div class="filter-label">📊 Period:</div>
+            <button class="filter-btn active" data-filter="All" onclick="setFilter('All',this)">All</button>
+            <div class="filter-divider"></div>
+            <button class="filter-btn" data-filter="Q1" onclick="setFilter('Q1',this)">Q1</button>
+            <button class="filter-btn" data-filter="Q2" onclick="setFilter('Q2',this)">Q2</button>
+            <button class="filter-btn" data-filter="Q3" onclick="setFilter('Q3',this)">Q3</button>
+            <button class="filter-btn" data-filter="Q4" onclick="setFilter('Q4',this)">Q4</button>
+            <div class="filter-divider"></div>
+            <button class="filter-btn" data-filter="H1" onclick="setFilter('H1',this)">H1</button>
+            <button class="filter-btn" data-filter="H2" onclick="setFilter('H2',this)">H2</button>
+            <div class="filter-divider"></div>
+            <div class="filter-label">Months:</div>
+            <div id="monthBtns"></div>
+        </div>
+
+        <!-- WELCOME -->
+        <div class="welcome-screen" id="welcomeScreen">
+            <div class="welcome-logos">
+                <img class="welcome-logo-wide" id="welcomeLogoWide" src="data:image/png;base64,iVBORw0KGgoAAA...">
+                <img class="welcome-logo-square" id="welcomeLogoSquare" src="data:image/png;base64,iVBORw0KGgoAAA...">
+            </div>
+            <div class="welcome-title">Welcome to United Pharmacy Dashboard</div>
+            <div class="welcome-sub">Upload your sales Excel file to visualise KPIs, charts, and pharmacist performance.</div>
+            <div class="welcome-upload">
+                <input type="file" id="welcomeFileInput" accept=".xlsx,.xls">
+                <button class="btn btn-primary" onclick="document.getElementById('welcomeFileInput').click()">📤 Upload Excel</button>
+            </div>
+            <div class="welcome-hint">Supported formats: .xlsx, .xls – Max file size: 10 MB</div>
+        </div>
+
+        <!-- LOADER -->
+        <div class="loader" id="loader"><div class="spinner"></div><div class="loader-text">Processing…</div></div>
+
+        <!-- DASHBOARD -->
+        <div class="dashboard" id="dashboard">
+            <!-- KPI GRID -->
+            <div class="kpi-grid" id="kpiGrid">
+                <!-- Example KPI Card (clone for each) -->
+                <div class="kpi-card kpi-accent">
+                    <div class="kpi-label">Total Sales</div>
+                    <div class="kpi-value" id="totalSales">$0</div>
+                    <div class="kpi-sub">This month</div>
+                    <div class="kpi-icon">💰</div>
+                </div>
+                <!-- Add more KPI cards as needed -->
+            </div>
+
+            <!-- CHARTS -->
+            <div class="charts-grid" id="chartsGrid">
+                <div class="chart-card">
+                    <div class="chart-header"><div class="dot"></div><h3>Sales Over Time</h3></div>
+                    <canvas id="salesOverTimeChart" class="chart-container"></canvas>
+                </div>
+                <div class="chart-card">
+                    <div class="chart-header"><div class="dot"></div><h3>Product Breakdown</h3></div>
+                    <canvas id="productBreakdownChart" class="chart-container"></canvas>
+                </div>
+                <!-- Add more charts as required -->
+            </div>
+
+            <!-- PHARMACIST GRID -->
+            <div class="section-title"><span class="line"></span>Top Pharmacists<span class="line"></span></div>
+            <div class="pharm-grid" id="pharmGrid">
+                <!-- Example Pharmacist Card (clone for each) -->
+                <div class="pharm-card" onclick="openPharmModal('pharm1')">
+                    <div class="pharm-top">
+                        <img class="pharm-avatar" src="data:image/png;base64,iVBORw0KGgoAAA...">
+                        <div class="pharm-name">John Doe</div>
+                        <div class="pharm-badge">A+</div>
+                    </div>
+                    <div class="pharm-stat"><span>Sales</span><span class="pharm-stat-val">$5,000</span></div>
+                    <div class="pharm-stat"><span>Orders</span><span class="pharm-stat-val">120</span></div>
+                </div>
+                <!-- Add more pharmacist cards -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<input type="file" id="logoInput" accept="image/*">
+<input type="file" id="fileInput" accept=".xlsx,.xls">
+
+<script>
+    // ------------------------------
+    // Helper utilities
+    // ------------------------------
+    const formatCurrency = (num) => {
+        if (isNaN(num)) return "$0";
+        return "$" + Number(num).toLocaleString();
+    };
+
+    // ------------------------------
+    // File handling / parsing
+    // ------------------------------
+    const fileInput = document.getElementById('fileInput');
+    const welcomeFileInput = document.getElementById('welcomeFileInput');
+    const dropOverlay = document.getElementById('dropOverlay');
+
+    const showLoader = () => document.getElementById('loader').classList.add('show');
+    const hideLoader = () => document.getElementById('loader').classList.remove('show');
+
+    const showDashboard = () => {
+        document.getElementById('welcomeScreen').classList.remove('show');
+        document.getElementById('dashboard').classList.add('show');
+    };
+
+    const resetUI = () => {
+        document.getElementById('fileInfo').classList.remove('show');
+        document.getElementById('kpiGrid').innerHTML = '';
+        document.getElementById('chartsGrid').innerHTML = '';
+        document.getElementById('pharmGrid').innerHTML = '';
+    };
+
+    // --------------------------------------------------------------------
+    // Main entry point – reads Excel & populates UI
+    // --------------------------------------------------------------------
+    const handleFile = (file) => {
+        resetUI();
+        showLoader();
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, {type: 'array'});
+
+            // Take first sheet (adjust if you have multiple)
+            const firstSheetName = workbook.SheetNames[0];
+            const ws = workbook.Sheets[firstSheetName];
+            const jsonData = XLSX.utils.sheet_to_json(ws, {header:1, defval: ''});
+
+            // ------------------------------
+            // Fill file‑info bar
+            // ------------------------------
+            document.getElementById('fileName').textContent = file.name;
+            document.getElementById('rowCount').textContent = jsonData.length - 1; // minus header
+            document.getElementById('colCount').textContent = jsonData[0]?.length || 0;
+            document.getElementById('sheetName').textContent = firstSheetName;
+            document.getElementById('fileInfo').classList.add('show');
+
+            // ------------------------------
+            // Extract & compute KPIs
+            // ------------------------------
+            const headers = jsonData[0];
+            const rows = jsonData.slice(1);
+
+            // Expected columns (customise to your Excel)
+            const COL_DATE = headers.indexOf('Date');
+            const COL_PERIOD = headers.indexOf('Period');   // e.g. Q1, Q2…
+            const COL_MONTH = headers.indexOf('Month');
+            const COL_PHARM = headers.indexOf('Pharmacist');
+            const COL_SALES = headers.indexOf('Sales');     // numeric
+            const COL_ORDERS = headers.indexOf('Orders');   // numeric
+            const COL_PRODUCT = headers.indexOf('Product');
+
+            // totals
+            let totalSales = 0;
+            let totalOrders = 0;
+            const salesByPeriod = {};
+            const salesByMonth = {};
+            const salesByProduct = {};
+            const pharmStats = {};
+
+            rows.forEach(row => {
+                const sales = parseFloat(row[COL_SALES]) || 0;
+                const orders = parseInt(row[COL_ORDERS]) || 0;
+                const period = row[COL_PERIOD];
+                const month = row[COL_MONTH];
+                const product = row[COL_PRODUCT];
+                const pharm = row[COL_PHARM];
+
+                totalSales += sales;
+                totalOrders += orders;
+
+                // period aggregation
+                if (period) {
+                    salesByPeriod[period] = (salesByPeriod[period] || 0) + sales;
+                }
+
+                // month aggregation
+                if (month) {
+                    salesByMonth[month] = (salesByMonth[month] || 0) + sales;
+                }
+
+                // product aggregation
+                if (product) {
+                    salesByProduct[product] = (salesByProduct[product] || 0) + sales;
+                }
+
+                // pharmacist aggregation
+                if (pharm) {
+                    if (!pharmStats[pharm]) {
+                        pharmStats[pharm] = {sales:0, orders:0, avatar:''};
+                    }
+                    pharmStats[pharm].sales += sales;
+                    pharmStats[pharm].orders += orders;
+                }
+            });
+
+            // ------------------------------
+            // Populate KPI cards
+            // ------------------------------
+            const kpiGrid = document.getElementById('kpiGrid');
+            const createKpi = (label, value, sub, icon, accentClass) => {
+                const card = document.createElement('div');
+                card.className = `kpi-card ${accentClass}`;
+                card.innerHTML = `
+                    <div class="kpi-label">${label}</div>
+                    <div class="kpi-value">${value}</div>
+                    <div class="kpi-sub">${sub}</div>
+                    <div class="kpi-icon">${icon}</div>
+                `;
+                kpiGrid.appendChild(card);
+            };
+            createKpi('Total Sales', formatCurrency(totalSales), 'All time', '💰', 'kpi-accent');
+            createKpi('Total Orders', totalOrders, 'All time', '📦', 'kpi-blue');
+            // add more KPIs as you wish …
+
+            // ------------------------------
+            // Build charts (using Chart.js)
+            // ------------------------------
+            const buildBarChart = (ctxId, labels, data, title) => {
+                const ctx = document.getElementById(ctxId).getContext('2d');
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: title,
+                            data: data,
+                            backgroundColor: 'rgba(13,148,136,0.6)',
+                            borderColor: 'rgba(13,148,136,1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: {beginAtZero:true}
+                        }
+                    }
+                });
+            };
+
+            // sales over time (by month)
+            const monthLabels = Object.keys(salesByMonth).sort();
+            const monthValues = monthLabels.map(m=>salesByMonth[m]);
+            const salesChartDiv = document.createElement('div');
+            salesChartDiv.className = 'chart-card';
+            salesChartDiv.innerHTML = `<div class="chart-header"><div class="dot"></div><h3>Sales by Month</h3></div><canvas id="salesByMonthChart" class="chart-container"></canvas>`;
+            document.getElementById('chartsGrid').appendChild(salesChartDiv);
+            buildBarChart('salesByMonthChart', monthLabels, monthValues, 'Sales');
+
+            // product breakdown (pie)
+            const productLabels = Object.keys(salesByProduct);
+            const productValues = productLabels.map(p=>salesByProduct[p]);
+            const productChartDiv = document.createElement('div');
+            productChartDiv.className = 'chart-card';
+            productChartDiv.innerHTML = `<div class="chart-header"><div class="dot"></div><h3>Product Breakdown</h3></div><canvas id="productChart" class="chart-container"></canvas>`;
+            document.getElementById('chartsGrid').appendChild(productChartDiv);
+            const ctxProd = document.getElementById('productChart').getContext('2d');
+            new Chart(ctxProd, {
+                type: 'pie',
+                data: {
+                    labels: productLabels,
+                    datasets: [{
+                        data: productValues,
+                        backgroundColor: productLabels.map((_,i)=>`hsl(${i*30},70%,60%)`)
+                    }]
+                },
+                options: {responsive:true}
+            });
+
+            // ------------------------------
+            // Pharmacist cards
+            // ------------------------------
+            const pharmGrid = document.getElementById('pharmGrid');
+            Object.entries(pharmStats).sort((a,b)=>b[1].sales - a[1].sales).forEach(([name,st])=>{
+                const card = document.createElement('div');
+                card.className = 'pharm-card';
+                card.onclick = () => openPharmModal(name);
+                card.innerHTML = `
+                    <div class="pharm-top">
+                        <img class="pharm-avatar" src="${st.avatar || 'https://via.placeholder.com/44'}">
+                        <div class="pharm-name">${name}</div>
+                        <div class="pharm-badge">⭐</div>
+                    </div>
+                    <div class="pharm-stat"><span>Sales</span><span class="pharm-stat-val">${formatCurrency(st.sales)}</span></div>
+                    <div class="pharm-stat"><span>Orders</span><span class="pharm-stat-val">${st.orders}</span></div>
+                `;
+                pharmGrid.appendChild(card);
+            });
+
+            // ------------------------------
+            // Show dashboard
+            // ------------------------------
+            hideLoader();
+            showDashboard();
+        };
+        reader.readAsArrayBuffer(file);
+    };
+
+    // -------------------------------------------------
+    // UI events
+    // -------------------------------------------------
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length) handleFile(e.target.files[0]);
+    });
+    welcomeFileInput.addEventListener('change', (e) => {
+        if (e.target.files.length) handleFile(e.target.files[0]);
+    });
+
+    // Drag‑and‑drop support
+    document.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropOverlay.classList.add('show');
+    });
+    document.addEventListener('dragleave', (e) => {
+        if (!e.relatedTarget || !document.body.contains(e.relatedTarget)) {
+            dropOverlay.classList.remove('show');
+        }
+    });
+    document.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropOverlay.classList.remove('show');
+        const file = e.dataTransfer.files[0];
+        if (file) handleFile(file);
+    });
+
+    // -------------------------------------------------
+    // Filter handling (Period / Month)
+    // -------------------------------------------------
+    const setFilter = (filter, btn) => {
+        // UI toggle
+        document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+
+        // TODO: adjust charts/kpis based on `filter`
+        // For brevity, filter logic is omitted – hook into the KPI / chart builders above.
+    };
+
+    // -------------------------------------------------
+    // Pharmacist modal
+    // -------------------------------------------------
+    const openPharmModal = (pharmName) => {
+        const modal = document.getElementById('pharmModal');
+        const body = document.getElementById('modalBody');
+        const stat = pharmStats[pharmName];
+        body.innerHTML = `
+            <div class="modal-kpi-grid">
+                <div class="modal-kpi"><div class="modal-kpi-label">Sales</div><div class="modal-kpi-value">${formatCurrency(stat.sales)}</div></div>
+                <div class="modal-kpi"><div class="modal-kpi-label">Orders</div><div class="modal-kpi-value">${stat.orders}</div></div>
+            </div>
+            <div class="modal-charts-grid">
+                <div class="modal-chart-card"><h4>Sales Trend</h4><canvas id="pharmTrendChart" class="modal-chart-container"></canvas></div>
+                <!-- Add more charts if required -->
+            </div>
+        `;
+        // Example trend chart (could be per‑month for this pharmacist)
+        const trendLabels = Object.keys(salesByMonth).sort(); // placeholder
+        const trendData = trendLabels.map(m=>Math.random()*1000); // replace with real data
+        const ctx = document.getElementById('pharmTrendChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: trendLabels,
+                datasets: [{label: pharmName, data: trendData, borderColor: 'rgba(13,148,136,1)', fill:false}]
+            }
+        });
+        modal.classList.add('show');
+    };
+    const closeModal = () => document.getElementById('pharmModal').classList.remove('show');
+
+    // -------------------------------------------------
+    // Logo upload handling
+    // -------------------------------------------------
+    document.getElementById('logoUploadBtn').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            document.getElementById('topbarLogo').src = ev.target.result;
+            document.getElementById('welcomeLogoWide').src = ev.target.result;
+            document.getElementById('welcomeLogoSquare').src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+
+</script>
+</body>
+</html>
